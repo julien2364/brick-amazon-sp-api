@@ -8,6 +8,7 @@ from sp_api.util.price_guard import (
     check_price,
     classer_anomalie,
     foreign_price,
+    plancher_pl,
     prix_pl,
     verifier_prix_pl,
 )
@@ -66,10 +67,15 @@ def test_plancher_66_06_accepte_66_05_refuse():
         verifier_prix_pl("66.05", "9.99", TAUX_PLN)
 
 
-def test_taux_en_baisse_bloque_plutot_que_brader():
-    # Si le taux BCE passe sous 4,404, 15 € convertis tombent sous 66,06 zł : refus explicite.
-    with pytest.raises(PriceRejected):
-        verifier_prix_pl(prix_pl("9.99", "4.30"), "9.99", "4.30")
+def test_taux_4_30_prix_au_plancher_15_eur_accepte():
+    # Plancher = 15 € × 4,30 = 64,50 zł : l'article au plancher passe malgré le taux < 4,404.
+    assert plancher_pl("4.30") == Decimal("64.50")
+    assert verifier_prix_pl(Decimal("15") * Decimal("4.30"), "9.99", "4.30") == Decimal("64.50")
+
+
+def test_taux_4_30_prix_juste_sous_plancher_refuse():
+    with pytest.raises(PriceRejected, match="plancher 64.50"):
+        verifier_prix_pl("64.49", "9.99", "4.30")
 
 
 # --- Groupe B_prix_fixe : 150 zł ---------------------------------------------

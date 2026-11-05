@@ -29,25 +29,27 @@ Livré à la place (tâche 3) : le **garde-fou réutilisable** dans la biblioth�
 point de passage naturel d'un job Python qui écrirait des prix. Pas dans `arbitrage`, qui
 ne pousse aucun prix (et où un autre agent travaille).
 
-- `sp_api/util/price_guard.py` : `prix_pl()` (règle), `verifier_prix_pl()` (garde-fou),
+- `sp_api/util/price_guard.py` : `prix_pl()` (règle), `plancher_pl()`, `verifier_prix_pl()` (garde-fou),
   `classer_anomalie()` (audit A_x100 / B_prix_fixe), `controler_prix()` (générique).
-- `tests/util/test_price_guard.py` : 21 tests.
+- `tests/util/test_price_guard.py` : 22 tests.
 
 Règle appliquée : prix PL = max(prix FR ; 15 €) × taux BCE EUR/PLN, en zł (pas en grosz),
-arrondi au centime (ROUND_HALF_UP). Refus si prix > 3 × la référence ou < 66,06 zł.
+arrondi au centime (ROUND_HALF_UP). Refus si prix > 3 × la référence ou < au plancher
+**15 € × taux BCE passé en paramètre** (66,06 zł à 4,404 ; 64,50 zł à 4,30).
 
 ## VALIDATION
 
 ```
 $ python -m pytest -q tests/util
 .....................                                                    [100%]
-21 passed
+22 passed
 ```
 
 - Cas **12 615 zł** (prix FR 28,65 €, taux 4,404 → référence 126,17 zł) : **refusé**
   (`PriceRejected : 12615 > 3 × la référence 126.17`) et classé `A_x100`. Idem 14 107 et
   14 786 zł. Les mêmes montants divisés par 100 passent.
-- Plancher : 66,06 zł accepté, 66,05 zł refusé ; 9,99 € → 66,06 zł.
+- Plancher suivant le taux : à 4,404, 66,06 zł accepté et 66,05 zł refusé ; à 4,30,
+  64,50 zł (15 € × 4,30) accepté et 64,49 zł refusé.
 - Suite complète : 136 échecs **préexistants et identiques** avant/après (tests qui
   exigent des identifiants AWS/LWA absents du conteneur) ; aucun nouvel échec.
 
@@ -69,9 +71,9 @@ $ python -m pytest -q tests/util
 - **Groupe B (150 zł fixe) non bloqué par le garde-fou seul** : 150 zł est souvent entre
   66,06 zł et 3 × la référence. Il est repéré par `classer_anomalie()` et corrigé par le
   recalcul `prix_pl()`, pas par `verifier_prix_pl()`.
-- Plancher **fixe** à 66,06 zł (= 15 € × 4,404) : si le taux BCE passe sous 4,404, les
-  articles au plancher seront **refusés** (choix volontaire : bloquer plutôt que brader).
-  À revoir si la règle doit suivre le taux du jour.
+- Le plancher suit le taux fourni (15 € × taux, correction du 05/11 demandée par la
+  coordination) : un taux erroné fourni par l'appelant déplace aussi le plancher. Un
+  plancher fixe reste possible via le paramètre `plancher_pln`.
 - Le taux BCE n'est pas récupéré par le module : l'appelant le fournit.
 
 ## SUITE

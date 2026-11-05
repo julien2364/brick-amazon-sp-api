@@ -10,7 +10,8 @@ par un job non identifié, avec deux signatures :
 Règle validée (session du 05/11/2026) :
     prix PL = max(prix FR ; 15 €) × taux BCE EUR/PLN, en zł (jamais en grosz),
     arrondi au centime.
-Garde-fou : refuser tout prix > 3 × la référence ou < au plancher de 66,06 zł.
+Garde-fou : refuser tout prix > 3 × la référence ou < au plancher de 15 € × taux BCE
+(66,06 zł au taux de 4,404).
 
 Le module ne fait aucun appel réseau : il se branche juste avant
 ``patch_listings_item`` / ``put_listings_item`` / un feed de prix.
@@ -24,6 +25,7 @@ __all__ = [
     "controler_prix",
     "prix_pl",
     "verifier_prix_pl",
+    "plancher_pl",
     "classer_anomalie",
     "PLANCHER_PL_PLN",
     "PLANCHER_EUR",
@@ -31,7 +33,7 @@ __all__ = [
 ]
 
 PLANCHER_EUR = Decimal("15")
-PLANCHER_PL_PLN = Decimal("66.06")  # 15 € × 4,404 (taux BCE retenu par la règle)
+PLANCHER_PL_PLN = Decimal("66.06")  # exemple : 15 € × 4,404 ; le plancher réel suit le taux
 RATIO_MAX = Decimal("3")
 PRIX_FIXE_SUSPECT_PLN = Decimal("150")
 CENTIME = Decimal("0.01")
@@ -104,14 +106,22 @@ def prix_pl(prix_fr_eur, taux_bce_eur_pln):
     return foreign_price(prix_fr_eur, taux_bce_eur_pln, PLANCHER_EUR)
 
 
+def plancher_pl(taux_bce_eur_pln):
+    """Plancher Amazon.pl en zł : 15 € × taux BCE passé en paramètre, au centime."""
+    return foreign_price(PLANCHER_EUR, taux_bce_eur_pln, PLANCHER_EUR)
+
+
 def verifier_prix_pl(prix_envoye_pln, prix_fr_eur, taux_bce_eur_pln,
-                     plancher_pln=PLANCHER_PL_PLN, ratio_max=RATIO_MAX):
+                     plancher_pln=None, ratio_max=RATIO_MAX):
     """Dernier contrôle avant envoi d'un prix sur Amazon.pl.
 
     Refuse (PriceRejected) un prix > ``ratio_max`` × la référence ``prix_pl`` ou
-    < ``plancher_pln`` (66,06 zł). Renvoie le prix accepté, arrondi au centime.
+    < au plancher (par défaut ``plancher_pl(taux)`` = 15 € × taux, soit 66,06 zł à
+    4,404). Renvoie le prix accepté, arrondi au centime.
     """
     reference = prix_pl(prix_fr_eur, taux_bce_eur_pln)
+    if plancher_pln is None:
+        plancher_pln = plancher_pl(taux_bce_eur_pln)
     return controler_prix(prix_envoye_pln, reference, plancher_pln, ratio_max)
 
 
